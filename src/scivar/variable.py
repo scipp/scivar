@@ -52,8 +52,19 @@ class Variable(numpy.lib.mixins.NDArrayOperatorsMixin):
     def values(self):
         return self._values
 
+    def _get_by_dim(self, dim, index):
+        if not isinstance(index, int):
+            raise NotImplementedError("TODO: range index")
+        split = self._dims.index(dim)
+        if split == 0:
+            return Variable(self._dims[1:], self._values[index], unit=self._unit)
+        dims = self._dims[:split] + self._dims[split+1:]
+        slc = (slice(None),) * split + (index,)
+        return Variable(dims, self._values[slc], unit=self._unit)
+
     def __getitem__(self, index):
-        # TODO Use dim labels for slicing
+        if isinstance(index, tuple) and isinstance(index[0], str):
+            return self._get_by_dim(*index)
         # TODO remove dim if not range slice
         return Variable(self._dims, self._values[index], self._unit)
 
