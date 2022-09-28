@@ -58,8 +58,8 @@ class Variable(numpy.lib.mixins.NDArrayOperatorsMixin):
         split = self._dims.index(dim)
         if split == 0:
             return Variable(self._dims[1:], self._values[index], unit=self._unit)
-        dims = self._dims[:split] + self._dims[split+1:]
-        slc = (slice(None),) * split + (index,)
+        dims = self._dims[:split] + self._dims[split + 1:]
+        slc = (slice(None), ) * split + (index, )
         return Variable(dims, self._values[slc], unit=self._unit)
 
     def __getitem__(self, index):
@@ -77,22 +77,32 @@ class Variable(numpy.lib.mixins.NDArrayOperatorsMixin):
                         values=np.array(scipp_var.values),
                         unit=scipp_var.unit)
 
+    def _is_scipp_compatible(self):
+        # Could also handle other things that have "normal" buffer+strides
+        return isinstance(self._values, np.ndarray)
+
     def equals(self, other):
         return sc.identical(self._to_scipp(), other._to_scipp())
 
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
         if method == '__call__':
-            arrays = [a._to_scipp() for a in inputs]
-            # Temporary hack for testing: Copy to scipp and apply
-            if ufunc == np.add:
-                out = sc.add(*arrays)
-            elif ufunc == np.multiply:
-                out = sc.multiply(*arrays)
-            else:
-                return NotImplemented
-            return Variable._from_scipp(out)
-            if (out := kwargs.get('out')) is not None:
-                kwargs['out'] = tuple([self._unwrap_content(v) for v in out])
+            if all([x._is_scipp_compatible() for x in inputs]):
+                arrays = [a._to_scipp() for a in inputs]
+                # Temporary hack for testing: Copy to scipp and apply
+                if ufunc == np.add:
+                    out = sc.add(*arrays)
+                elif ufunc == np.multiply:
+                    out = sc.multiply(*arrays)
+                else:
+                    # TODO Fallback to underlying
+                    return NotImplemented
+                return Variable._from_scipp(out)
+            arrays = [a._values for a in inputs]
+            # TODO process unit and broadcast/transpose
+            return Variable(self.dims, ufunc(*arrays, **kwargs), unit=self._unit)
+
+            #if (out := kwargs.get('out')) is not None:
+            #    kwargs['out'] = tuple([self._unwrap_content(v) for v in out])
         else:
             return NotImplemented
 
@@ -102,3 +112,6 @@ class Variable(numpy.lib.mixins.NDArrayOperatorsMixin):
         if not all(issubclass(t, Variable) for t in types):
             return NotImplemented
         return HANDLED_FUNCTIONS[func](*args, **kwargs)
+
+    def compute(self):
+        return Variable(self._dims, self._values.compute(), unit=self._unit)
