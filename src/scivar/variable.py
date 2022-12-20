@@ -16,6 +16,41 @@ def implements(numpy_function):
     return decorator
 
 
+# TODO
+# how to combin this with binned data?
+class BinnedVariable:
+    starts: np.ndarray
+    stops: np.ndarray
+    content: #sliceable
+    # col behaviors, e.g., scipp.DataArray
+    # np.add.reduceat
+    # Can we just make that the outer, and share indices?
+
+class Binned:
+    behavior: sc.DataArray # contains several BinnedVariable, sharing starts and stops
+
+
+class DataArray:
+    coords: Dict[str, Variable]
+    data: Union[Variable, DataArray]
+
+da.coords['x']
+da.data.coords['x']  # events
+# but need to prevent incompatible changes
+# *are* the changes really incompatible?
+
+# make decorator that turns any array-like into "binned"?
+# - binned ops across columns (BinnedVariable can sum over content dim, needed for all)
+# - but this needs behavior, e.g., coord will be dropped
+# sc.sum_bins(da) -> sc.sum_bins(da.data)
+# Use special object to indicate sum over bins? `da.sum(sc.bin_dim)`?
+# Could the same be useful for vectors and matrices?
+
+# Can duck-array wrap things of higher shape, and just require match on outer?
+    
+
+
+
 class Variable(numpy.lib.mixins.NDArrayOperatorsMixin):
     """Array with unit and dimension names"""
 
@@ -23,6 +58,7 @@ class Variable(numpy.lib.mixins.NDArrayOperatorsMixin):
         self._dims = tuple(dims)
         self._unit = unit if isinstance(unit, sc.Unit) else sc.Unit(unit)
         self._values = values
+        self._attrs = {}  # probably?
 
     def __repr__(self):
         return f"{self.__class__.__name__}(dims={self.dims}, shape={self.shape}, "
